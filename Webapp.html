@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Barbie Filmes - Catálogo de Mídia</title>
+    <!-- PWA Manifest e Cor do Tema -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#192a56">
+    <link rel="apple-touch-icon" href="https://placehold.co/192x192/673AB7/FFF?text=BF">
+    <link rel="icon" href="https://placehold.co/192x192/673AB7/FFF?text=BF" type="image/png">
+
+    <!-- Inclui o Tailwind CSS para estilização -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    
+    <!-- Configuração de Cores (Azul Escuro e Roxo) -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary-dark': '#1A237E', // Azul Escuro Principal (Índigo)
+                        'secondary-vibrant': '#673AB7', // Roxo Vibrante
+                        'app-bg': '#E8EAF6', // Fundo Claro (Lavanda Suave)
+                        'text-light': '#F8F9FA', // Texto para fundos escuros
+                        'navy-blue': '#192a56', // Azul Marinho
+                        'darker-blue': '#0d1b2a', // Outro Azul Escuro
+                        'brand-black': '#000000', // Preto
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Estilos base */
+        html, body {
+            height: 100%;
+            margin: 0;
+            background-color: #0d1b2a; /* Alterado para o novo bg-darker-blue */
+            font-family: 'Inter', sans-serif;
+        }
+        /* Estilo para rolagem horizontal suave e forçar o snap */
+        .horizontal-scroll {
+            display: flex; /* Mantém o layout flexível */
+            overflow-x: auto; /* Permite rolagem por toque no celular */
+            -webkit-mask: none; /* Remove a máscara em telas menores */
+            mask: none;
+        }
+        @media (min-width: 640px) { /* sm: breakpoint */
+            .horizontal-scroll {
+                overflow-x: hidden; /* Esconde a rolagem para a animação em telas maiores */
+            }
+        }
+        /* Estilização da barra de rolagem (opcional, mas melhora a estética) */
+        .horizontal-scroll::-webkit-scrollbar {
+            height: 6px;
+        }
+        .horizontal-scroll::-webkit-scrollbar-thumb {
+            background-color: #9FA8DA; /* Azul suave */
+            border-radius: 3px;
+        }
+
+        /* Animação de carrossel infinito */
+        @keyframes scroll-left {
+            from { transform: translateX(0); }
+            to { transform: translateX(-50%); } /* Move pela metade da largura total (conteúdo duplicado) */
+        }
+
+        @media (min-width: 640px) { /* sm: breakpoint */
+            .scrolling-wrapper {
+                display: flex;
+                animation: scroll-left 60s linear infinite; /* Ajuste a duração conforme necessário */
+            }
+            .horizontal-scroll:hover .scrolling-wrapper {
+                animation-play-state: paused; /* Pausa a animação no hover */
+            }
+        }
+
+        /* Estilos para a animação do preloader */
+        #preloader-animation-container {
+            display: flex;
+            align-items: flex-end;
+            height: 80px; /* Altura para o salto */
+        }
+
+        .preloader-letter {
+            font-size: 2.5rem; /* 40px */
+            font-weight: 800; /* extrabold */
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+
+        .preloader-dot {
+            width: 12px;
+            height: 12px;
+            background-color: #673AB7; /* secondary-vibrant */
+            border-radius: 50%;
+            margin-left: 8px;
+            animation: bounce 0.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes bounce {
+            from { transform: translateY(0); }
+            to { transform: translateY(-40px); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Preloader com Animação -->
+    <div id="preloader" class="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-brand-black text-white">
+        <div id="preloader-animation-container">
+            <!-- Letras e ponto serão injetados aqui pelo JS -->
+        </div>
+        <div class="absolute bottom-10 text-lg font-semibold text-gray-400 tracking-widest">TURING</div>
+    </div>
+    <!-- Contêiner principal da aplicação -->
+    <div id="app" class="min-h-screen pb-10 bg-darker-blue text-text-light opacity-0 transition-opacity duration-1000">
+        
+        <!-- Cabeçalho Fixo (Nome e Barra de Pesquisa) -->
+        <header class="sticky top-0 z-20 bg-navy-blue/95 backdrop-blur-sm shadow-xl px-4 py-3 sm:px-8 flex justify-between items-center">
+            
+            <!-- Nome do Aplicativo (Top-Left) -->
+            <h1 class="text-2xl sm:text-3xl font-extrabold text-white">
+                Barbie <span class="text-secondary-vibrant">Filmes</span>
+            </h1>
+
+            <!-- Pesquisa (simulada) -->
+            <div id="search-container" class="relative w-1/2 max-w-sm hidden sm:block">
+                <input type="text" id="search-input-header" placeholder="Pesquisar..."
+                       class="w-full p-2 pl-10 rounded-full text-sm bg-white/10 text-white border border-secondary-vibrant focus:outline-none focus:ring-2 focus:ring-secondary-vibrant transition">
+                <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-secondary-vibrant text-sm"></i>
+            </div>
+            
+            <button id="mobile-search-btn" class="sm:hidden text-white text-lg"><i class="fas fa-search"></i></button>
+        </header>
+
+        <!-- Barra de Pesquisa Mobile (inicialmente oculta) -->
+        <div id="mobile-search-bar" class="p-4 bg-navy-blue hidden"></div>
+        <!-- Navegação por Seções (Opcional: Pode ser links de âncora) -->
+        <nav class="p-4 bg-navy-blue text-white shadow-lg">
+            <div class="flex space-x-4 overflow-x-auto whitespace-nowrap">
+                <a href="#filmes" class="font-semibold hover:text-secondary-vibrant transition duration-200 text-sm sm:text-base">Filmes</a>
+                <a href="#series" class="font-semibold hover:text-secondary-vibrant transition duration-200 text-sm sm:text-base">Séries</a>
+                <a href="#animes" class="font-semibold hover:text-secondary-vibrant transition duration-200 text-sm sm:text-base">Animes</a>
+            </div>
+        </nav>
+
+        <!-- CONTEÚDO PRINCIPAL (LAYOUT DE CARROSSEL) -->
+        <main class="p-4 sm:p-8">
+            
+            <!-- 1. Seção Filmes (Carrossel Horizontal) -->
+            <section id="filmes" class="mb-10 overflow-hidden">
+                <h2 class="text-3xl font-bold mb-4 text-text-light">Filmes</h2>
+                <div id="filmes-carousel" class="horizontal-scroll gap-4 pb-4">
+                    <!-- Cards de Filmes serão injetados aqui -->
+                </div>
+            </section>
+
+            <!-- 2. Seção Séries (Carrossel Horizontal) -->
+            <section id="series" class="mb-10 overflow-hidden">
+                <h2 class="text-3xl font-bold mb-4 text-text-light">Séries</h2>
+                <div id="series-carousel" class="horizontal-scroll gap-4 pb-4">
+                    <!-- Cards de Séries serão injetados aqui -->
+                </div>
+            </section>
+
+            <!-- 3. Seção Animes (Carrossel Horizontal) -->
+            <section id="animes" class="mb-10 overflow-hidden">
+                <h2 class="text-3xl font-bold mb-4 text-text-light">Animes</h2>
+                <div id="animes-carousel" class="horizontal-scroll gap-4 pb-4">
+                    <!-- Cards de Animes serão injetados aqui -->
+                </div>
+            </section>
+
+        </main>
+    </div>
+    
+    <!-- Rodapé -->
+    <footer id="footer" class="text-center p-6 border-t border-gray-700 text-gray-400 text-sm">
+        <p>&copy; 2024 Turing. Todos os direitos reservados.</p>
+        <a href="#" onclick="openPrivacyModal(event)" class="mt-2 inline-block hover:text-secondary-vibrant transition-colors">
+            Política de Privacidade
+        </a>
+    </footer>
+    
+    <!-- MODAL DO PLAYER/DETALHES (Fixa, sobrepõe todo o conteúdo) -->
+    <div id="player-modal" class="fixed inset-0 bg-black bg-opacity-90 z-50 hidden p-4 sm:p-8 overflow-y-auto">
+        <div class="max-w-4xl mx-auto relative">
+            
+            <!-- Botão Fechar -->
+            <button onclick="closePlayer()" class="absolute top-4 right-4 text-white text-3xl hover:text-secondary-vibrant transition duration-200">
+                &times;
+            </button>
+            
+            <!-- Conteúdo do Player/Detalhes -->
+            <div class="bg-navy-blue rounded-xl shadow-2xl p-6 sm:p-8 mt-10">
+                <h2 id="player-title" class="text-3xl sm:text-4xl font-extrabold text-secondary-vibrant mb-4"></h2>
+                <p id="player-description" class="text-lg text-text-light mb-6"></p>
+
+                <!-- Área de Visualização (Fica oculta até um episódio ser selecionado) -->
+                <div id="video-container-wrapper" class="w-full bg-gray-900 rounded-lg overflow-hidden aspect-video mb-8 border-4 border-secondary-vibrant hidden">
+                    <!-- O player de vídeo será inserido aqui ou a simulação -->
+                    <div id="video-container" class="w-full h-full"></div>
+                </div>
+
+                <!-- Lista de Temporadas e Episódios -->
+                <div id="seasons-list" class="mb-8">
+                    <!-- A lista de episódios será injetada aqui -->
+                </div>
+
+                <!-- Placeholder para quando não houver vídeo -->
+                <div id="player-placeholder" class="w-full h-full hidden items-center justify-center flex-col">
+                    <i class="fas fa-play-circle text-white text-6xl opacity-75"></i>
+                    <p id="player-placeholder-text" class="text-white font-medium text-sm sm:text-lg mt-4">
+                        Simulação de Player de Vídeo
+                    </p>
+                </div>
+
+                <!-- Controles do Player e Download (Funcionalidades de App Grande) -->
+                <div class="flex flex-wrap justify-between items-center gap-4 mb-8">
+                    <button class="flex items-center space-x-2 px-6 py-3 bg-secondary-vibrant text-white font-bold rounded-lg shadow-lg hover:bg-purple-700 transition">
+                        <i class="fas fa-play"></i>
+                        <span>Reproduzir Agora</span>
+                    </button>
+                    
+                    <button class="flex items-center space-x-2 px-6 py-3 bg-navy-blue text-white border-2 border-secondary-vibrant font-bold rounded-lg shadow-lg hover:bg-secondary-vibrant hover:text-white transition">
+                        <i class="fas fa-download"></i>
+                        <span>Baixar Conteúdo</span>
+                    </button>
+
+                    <button class="flex items-center space-x-2 px-6 py-3 bg-secondary-vibrant text-white font-bold rounded-lg shadow-lg hover:bg-purple-700 transition">
+                        <i class="fas fa-plus"></i>
+                        <span>Minha Lista</span>
+                    </button>
+                </div>
+
+                <hr class="border-gray-700 mb-6">
+
+                <!-- Área para Carregar Arquivos Locais (Animes do seu PC) -->
+                <div class="bg-gray-800 p-6 rounded-lg border border-secondary-vibrant">
+                    <h3 class="text-xl font-bold text-accent-blue mb-3 text-text-light">Reprodução Local (Seus Arquivos)</h3>
+                    <p class="text-sm text-gray-400 mb-4">Selecione um arquivo de vídeo do seu computador para simular a reprodução neste player.</p>
+                    
+                    <input type="file" id="local-file-input" accept="video/*" class="w-full text-white bg-gray-700 p-3 rounded-lg file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-secondary-vibrant file:text-white hover:file:bg-purple-700 transition cursor-pointer">
+                    
+                    <div id="local-file-status" class="mt-3 text-sm font-semibold text-gray-400"></div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DA POLÍTICA DE PRIVACIDADE -->
+    <div id="privacy-modal" class="fixed inset-0 bg-black bg-opacity-90 z-50 hidden p-4 sm:p-8 overflow-y-auto">
+        <div class="max-w-4xl mx-auto relative">
+            
+            <!-- Botão Fechar -->
+            <button onclick="closePrivacyModal()" class="absolute top-4 right-4 text-white text-3xl hover:text-secondary-vibrant transition duration-200">
+                &times;
+            </button>
+            
+            <!-- Conteúdo da Política -->
+            <div class="bg-navy-blue rounded-xl shadow-2xl p-6 sm:p-8 mt-10 text-text-light">
+                <h2 class="text-3xl sm:text-4xl font-extrabold text-secondary-vibrant mb-6">Política de Privacidade</h2>
+                
+                <div class="space-y-4 text-gray-300">
+                    <p><strong>Última atualização:</strong> [2025]</p>
+                    
+                    <h3 class="text-xl font-bold text-white pt-4">1. Informações que Coletamos</h3>
+                    <p>Coletamos informações para fornecer e melhorar nossos serviços. Isso inclui informações que você nos fornece diretamente, como ao criar uma conta, e informações que coletamos automaticamente, como seu endereço IP e dados de uso do serviço.</p>
+
+                    <h3 class="text-xl font-bold text-white pt-4">2. Como Usamos Suas Informações</h3>
+                    <p>Utilizamos as informações coletadas para operar, manter e fornecer os recursos e funcionalidades do serviço, para nos comunicarmos com você, para personalizar o conteúdo e para fins de segurança.</p>
+
+                    <h3 class="text-xl font-bold text-white pt-4">3. Compartilhamento de Informações</h3>
+                    <p>Não compartilhamos suas informações pessoais com terceiros, exceto conforme descrito nesta política ou com o seu consentimento. Podemos compartilhar informações com fornecedores de serviços que nos auxiliam na operação do nosso negócio.</p>
+
+                    <h3 class="text-xl font-bold text-white pt-4">4. Seus Direitos</h3>
+                    <p>Você tem o direito de acessar, corrigir ou excluir suas informações pessoais. Entre em contato conosco para exercer esses direitos.</p>
+
+                    <h3 class="text-xl font-bold text-white pt-4">5. Contato</h3>
+                    <p>Se você tiver alguma dúvida sobre esta Política de Privacidade, entre em contato conosco pelo e-mail: [INSERIR E-MAIL DE CONTATO DA EMPRESA].</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Mocks de dados com conteúdo mais variado, não apenas infantil
+        const allContent = [
+            // FILMES
+            { id: 1, title: 'O Código do Silêncio', category: 'Filmes', description: 'Um thriller de espionagem que se desenrola no coração de Munique.', imageUrl: 'https://placehold.co/300x450/1A237E/FFF?text=Código+Silêncio', runtime: '2h 15m' },
+            { id: 2, title: 'A Ascensão de Vênus', category: 'Filmes', description: 'Ficção científica épica sobre a colonização de um novo planeta.', imageUrl: 'https://placehold.co/300x450/673AB7/FFF?text=Ascensão+Vênus', runtime: '1h 58m' },
+            { id: 3, title: 'A Maldição da Casa Antiga', category: 'Filmes', description: 'Um filme de terror psicológico com reviravoltas inesperadas.', imageUrl: 'https://placehold.co/300x450/42A5F5/FFF?text=Maldição+Antiga', runtime: '1h 40m' },
+            { id: 4, title: 'O Último Ronin', category: 'Filmes', description: 'Drama histórico sobre um samurai em busca de redenção.', imageUrl: 'https://placehold.co/300x450/1976D2/FFF?text=Ronin', runtime: '2h 20m' },
+            // SÉRIES
+            { id: 5, title: 'Sombra da Cidade', category: 'Séries', description: 'Série de detetives neo-noir, com 3 temporadas completas.', imageUrl: 'https://placehold.co/300x450/673AB7/FFF?text=Sombra+Cidade', seasons: 3 },
+            { id: 6, title: 'Projecto Épsilon', category: 'Séries', description: 'Suspense de conspiração política e alta tecnologia.', imageUrl: 'https://placehold.co/300x450/303F9F/FFF?text=Projecto+Epsilon', seasons: 1 },
+            { id: 7, title: 'Herdeiros do Vento', category: 'Séries', description: 'Drama familiar que se passa durante a corrida do ouro.', imageUrl: 'https://placehold.co/300x450/4527A0/FFF?text=Herdeiros+Vento', seasons: 5 },
+            // ANIMES
+            { id: 8, title: 'Guerra dos Elementos', category: 'Animes', description: 'Anime Shonen de batalha e magia com jovens protagonistas.', imageUrl: 'https://img.elo7.com.br/product/original/2E48E98/big-poster-do-anime-demon-slayer-kimetsu-no-yaiba-lo01-90x60-poster-de-anime.jpg', seasons: [
+                { season: 1, episodes: [
+                    { episode: 1, title: 'O Despertar', videoUrl: 'https://archive.org/download/2x-1_20250927/2x2.mp4' },
+                    { episode: 2, title: 'A Primeira Batalha', videoUrl: 'https://archive.org/download/cartoons/cartoons_512kb.mp4' }
+                ]}
+            ]},
+            { id: 9, title: 'Crônicas do Nexus', category: 'Animes', description: 'Cyberpunk e mistério em uma metrópole futurista.', imageUrl: 'https://i.pinimg.com/originals/93/13/e3/9313e3fb1755630894744f2e37d40a23.jpg', seasons: [
+                { season: 1, episodes: [
+                    { episode: 1, title: 'Luzes de Neon', videoUrl: 'https://archive.org/download/night_of_the_living_dead/night_of_the_living_dead_512kb.mp4' }
+                ]}
+            ]},
+            { id: 10, title: 'Solo Leveling', category: 'Animes', description: 'Em um mundo onde caçadores com poderes mágicos lutam contra monstros mortais, Sung Jin-Woo, um caçador notoriamente fraco, se vê em uma luta desesperada pela sobrevivência. Milagrosamente, ele sobrevive e é escolhido por um programa misterioso que lhe permite evoluir sem limites.', imageUrl: 'https://placehold.co/300x450/FF5722/FFF?text=Solo+Leveling', seasons: [
+                { season: 1, episodes: [
+                    { episode: 1, title: 'I\'m Used to It', videoUrl: 'https://archive.org/download/2x-1_20250927/2x1.mp4' },
+                    { episode: 2, title: 'If I had one more chance', videoUrl: 'https://archive.org/download/Popeye_the_Sailor_Meets_Sindbad_the_Sailor/Popeye_the_Sailor_Meets_Sindbad_the_Sailor_512kb.mp4' },
+                    { episode: 3, title: 'It\'s like a game', videoUrl: 'https://archive.org/download/night_of_the_living_dead/night_of_the_living_dead_512kb.mp4' }
+                ]},
+                { season: 2, episodes: [
+                    { episode: 1, title: 'A Nova Ameaça (Exemplo)', videoUrl: 'https://archive.org/download/cartoons/cartoons_512kb.mp4' }
+                ]}
+            ]}
+        ];
+
+        // Mapeamento de IDs de carrosséis
+        const carouselMap = {
+            'Filmes': 'filmes-carousel',
+            'Séries': 'series-carousel',
+            'Animes': 'animes-carousel',
+        };
+
+        /**
+         * Gera o HTML para um card de conteúdo.
+         * @param {Object} item - Objeto contendo title, description, category, etc.
+         * @returns {string} - O HTML do card.
+         */
+        function createContentCard(item) {
+            const widthClass = "w-40 sm:w-56"; // Largura fixa para carrossel
+            const badgeText = item.category === 'Filmes' ? item.runtime : 
+                              (item.seasons && item.seasons.length) ? `${item.seasons.length} Temp.` :
+                              item.episodes ? `${item.episodes} Eps.` : `${item.seasons} Temp.`;
+
+            // Usa a função openPlayer() ao clicar
+            return `
+                <div onclick="openPlayer(${item.id})" class="flex-none ${widthClass} cursor-pointer group mx-2 h-full">
+                    <!-- Card -->
+                    <div class="bg-navy-blue rounded-xl shadow-xl overflow-hidden">
+                        <!-- Imagem do Conteúdo -->
+                        <div class="relative w-full h-64 sm:h-80 overflow-hidden">
+                             <img src="${item.imageUrl}" alt="Capa de ${item.title}" 
+                                  class="w-full h-full object-cover group-hover:opacity-50 transition-opacity duration-300"
+                                  onerror="this.onerror=null; this.src='https://placehold.co/300x450/${item.category === 'Filmes' ? '1A237E' : item.category === 'Séries' ? '673AB7' : '42A5F5'}/FFF?text=${item.title.substring(0, 10)}...';">
+                            
+                            <!-- Ícone de Play (aparece no hover) -->
+                            <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                <i class="fas fa-play-circle text-white text-6xl"></i>
+                            </div>
+
+                            <!-- Badge de Duração/Episódios -->
+                            <span class="absolute bottom-0 left-0 px-3 py-1 text-xs font-bold rounded-tr-xl text-white bg-brand-black/70 backdrop-blur-sm shadow-md">
+                                ${badgeText}
+                            </span>
+                        </div>
+
+                        <!-- Detalhes do Conteúdo -->
+                        <div class="p-3">
+                            <h3 class="text-base font-semibold text-text-light truncate">${item.title}</h3>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        /**
+         * Renderiza todos os carrosséis com base no array allContent.
+         */
+        function renderContentSections() {
+            Object.keys(carouselMap).forEach(category => {
+                const carouselContainer = document.getElementById(carouselMap[category]);
+                carouselContainer.innerHTML = ''; 
+
+                const contentList = allContent.filter(item => item.category === category);
+                
+                if (contentList.length === 0) {
+                    carouselContainer.innerHTML = `<p class="text-gray-600">Nenhum conteúdo disponível nesta categoria.</p>`;
+                } else {
+                    let cardsHtml = '';
+                    contentList.forEach(item => { cardsHtml += createContentCard(item); });
+
+                    // Em telas pequenas, apenas renderiza os cards
+                    if (window.innerWidth < 640) {
+                        carouselContainer.innerHTML = cardsHtml;
+                    } else {
+                        // Em telas maiores, cria o wrapper para a animação e duplica o conteúdo
+                        const scrollingWrapper = document.createElement('div');
+                        scrollingWrapper.className = 'scrolling-wrapper';
+                        scrollingWrapper.innerHTML = cardsHtml + cardsHtml; // Duplica para o efeito infinito
+                        carouselContainer.appendChild(scrollingWrapper);
+                    }
+                }
+            });
+        }
+
+        /**
+         * Abre o modal do player e popula com os detalhes do item.
+         * @param {number} id - O ID do item de conteúdo.
+         */
+        function openPlayer(id) {
+            const item = allContent.find(i => i.id === id);
+            if (!item) return;
+
+            const modal = document.getElementById('player-modal');
+            const seasonsListContainer = document.getElementById('seasons-list');
+            const videoWrapper = document.getElementById('video-container-wrapper');
+
+            // Preenche os dados básicos
+            document.getElementById('player-title').textContent = item.title;
+            document.getElementById('player-description').textContent = item.description;
+            
+            // Limpa e esconde o player e a lista de episódios anteriores
+            seasonsListContainer.innerHTML = '';
+            videoWrapper.classList.add('hidden');
+            document.getElementById('video-container').innerHTML = '';
+
+            // Verifica se o item tem temporadas (é um anime/série com episódios)
+            if (item.seasons && item.seasons.length > 0) {
+                let seasonsHtml = '';
+                item.seasons.forEach(season => {
+                    seasonsHtml += `<h3 class="text-2xl font-bold text-white mt-6 mb-3">Temporada ${season.season}</h3>`;
+                    seasonsHtml += '<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">';
+                    season.episodes.forEach(ep => {
+                        // Adiciona o ID do item e o número da temporada/episódio ao onclick
+                        seasonsHtml += `
+                            <button onclick="playEpisode(${item.id}, ${season.season}, ${ep.episode})" 
+                                    id="ep-btn-${season.season}-${ep.episode}"
+                                    class="text-left p-4 bg-gray-800 rounded-lg hover:bg-secondary-vibrant transition-colors duration-200 group">
+                                <span class="font-semibold text-text-light">Episódio ${ep.episode}: ${ep.title}</span>
+                                <i class="fas fa-play-circle text-transparent ml-2 group-hover:text-white"></i>
+                            </button>
+                        `;
+                    });
+                    seasonsHtml += '</div>';
+                });
+                seasonsListContainer.innerHTML = seasonsHtml;
+            } else if (item.videoUrl) {
+                // É um filme com um único vídeo
+                playEpisode(item.id);
+            } else {
+                // Conteúdo sem vídeo disponível
+                videoWrapper.classList.remove('hidden');
+                const placeholder = document.getElementById('player-placeholder').cloneNode(true);
+                placeholder.classList.remove('hidden');
+                placeholder.classList.add('flex');
+                document.getElementById('player-placeholder-text').textContent = "Streaming não disponível para este título.";
+                document.getElementById('video-container').appendChild(placeholder);
+            }
+
+            // Exibe o modal
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        /**
+         * Reproduz um episódio específico ou um filme.
+         */
+        function playEpisode(itemId, seasonNum = null, episodeNum = null) {
+            const item = allContent.find(i => i.id === itemId);
+            let episodeData;
+
+            if (seasonNum !== null) { // É um episódio de uma série/anime
+                episodeData = item.seasons.find(s => s.season === seasonNum).episodes.find(e => e.episode === episodeNum);
+            } else { // É um filme
+                episodeData = item;
+            }
+
+            if (episodeData && episodeData.videoUrl) {
+                const videoWrapper = document.getElementById('video-container-wrapper');
+                const videoContainer = document.getElementById('video-container');
+                videoWrapper.classList.remove('hidden');
+                videoContainer.innerHTML = `<video id="main-player" class="w-full h-full" controls autoplay><source src="${episodeData.videoUrl}" type="video/mp4">Seu navegador não suporta a tag de vídeo.</video>`;
+
+                // Atualiza a UI dos botões para mostrar o episódio ativo
+                document.querySelectorAll('[id^="ep-btn-"]').forEach(btn => btn.classList.remove('bg-secondary-vibrant'));
+                if(seasonNum !== null) {
+                    document.getElementById(`ep-btn-${seasonNum}-${episodeNum}`).classList.add('bg-secondary-vibrant');
+                }
+            }
+        }
+
+        /**
+         * Fecha o modal do player.
+         */
+        function closePlayer() {
+            const modal = document.getElementById('player-modal');
+            const videoPlayer = document.getElementById('main-player');
+
+            // Pausa e limpa o vídeo para parar a reprodução em segundo plano
+            if (videoPlayer) {
+                videoPlayer.pause();
+                videoPlayer.removeAttribute('src');
+                videoPlayer.load();
+            }
+
+            modal.classList.add('hidden');
+            document.body.style.overflow = 'auto'; // Restaura a rolagem
+        }
+
+        /**
+         * Abre o modal da política de privacidade.
+         */
+        function openPrivacyModal(event) {
+            event.preventDefault(); // Impede o link de navegar
+            const modal = document.getElementById('privacy-modal');
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        /**
+         * Fecha o modal da política de privacidade.
+         */
+        function closePrivacyModal() {
+            const modal = document.getElementById('privacy-modal');
+            modal.classList.add('hidden');
+            // Apenas restaura a rolagem se o player também estiver fechado
+            if (document.getElementById('player-modal').classList.contains('hidden')) {
+                document.body.style.overflow = 'auto';
+            }
+        }
+
+        /**
+         * Lida com a seleção de arquivo local (apenas para demonstração da UI).
+         */
+        document.getElementById('local-file-input').addEventListener('change', (event) => {
+            const fileInput = event.target;
+            const statusElement = document.getElementById('local-file-status');
+            
+            if (fileInput.files && fileInput.files.length > 0) {
+                const fileName = fileInput.files[0].name;
+                statusElement.textContent = `Arquivo carregado: ${fileName}. Pronto para reprodução!`;
+                statusElement.classList.remove('text-gray-400');
+                statusElement.classList.add('text-secondary-vibrant');
+            } else {
+                statusElement.textContent = 'Nenhum arquivo selecionado.';
+                statusElement.classList.remove('text-secondary-vibrant');
+                statusElement.classList.add('text-gray-400');
+            }
+        });
+
+        /**
+         * Lida com a funcionalidade de busca mobile.
+         */
+        document.getElementById('mobile-search-btn').addEventListener('click', () => {
+            const mobileSearchBar = document.getElementById('mobile-search-bar');
+            const isHidden = mobileSearchBar.classList.contains('hidden');
+
+            if (isHidden) {
+                // Clona a barra de pesquisa do desktop e a insere no container mobile
+                const desktopSearch = document.getElementById('search-container').cloneNode(true);
+                desktopSearch.classList.remove('hidden', 'sm:block'); // Garante que seja visível
+                desktopSearch.classList.add('w-full', 'max-w-full'); // Ocupa toda a largura
+                mobileSearchBar.innerHTML = ''; // Limpa antes de adicionar
+                mobileSearchBar.appendChild(desktopSearch);
+                mobileSearchBar.classList.remove('hidden');
+            } else {
+                mobileSearchBar.classList.add('hidden');
+            }
+        });
+
+        /**
+         * Lida com a animação do preloader.
+         */
+        function handlePreloader() {
+            const textToAnimate = "Barbie Filmes";
+            const animationContainer = document.getElementById('preloader-animation-container');
+            const preloader = document.getElementById('preloader');
+            const appContainer = document.getElementById('app');
+            
+            // Cria os spans para as letras
+            textToAnimate.split('').forEach(char => {
+                const letterSpan = document.createElement('span');
+                letterSpan.className = 'preloader-letter';
+                letterSpan.textContent = char === ' ' ? '\u00A0' : char; // Mantém o espaço
+                animationContainer.appendChild(letterSpan);
+            });
+
+            // Adiciona o ponto saltitante
+            const dot = document.createElement('div');
+            dot.className = 'preloader-dot';
+            animationContainer.appendChild(dot);
+
+            const letters = document.querySelectorAll('.preloader-letter');
+            let index = 0;
+            const intervalTime = 500; // Corresponde à duração da animação de salto (0.5s)
+
+            const interval = setInterval(() => {
+                if (index < letters.length) {
+                    letters[index].style.opacity = '1';
+                    letters[index].style.transform = 'translateY(0)';
+                    index++;
+                } else {
+                    clearInterval(interval);
+                    // Esconde o preloader e mostra o app
+                    preloader.style.display = 'none';
+                    document.getElementById('footer').style.opacity = 1; // Garante que o footer apareça
+                    appContainer.classList.remove('opacity-0');
+                }
+            }, intervalTime);
+        }
+
+        // Inicializa a aplicação quando a janela carregar
+        window.onload = () => {
+            renderContentSections();
+            // Esconde o footer e o app inicialmente
+            document.getElementById('footer').style.opacity = 0;
+            handlePreloader();
+
+            // Registra o Service Worker para PWA
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('sw.js') // Caminho relativo para garantir que seja encontrado
+                    .then(registration => {
+                        console.log('Service Worker registrado com sucesso:', registration);
+                    })
+                    .catch(error => {
+                        console.log('Falha ao registrar o Service Worker:', error);
+                    });
+            }
+        };
+
+    </script>
+
+</body>
+</html>
